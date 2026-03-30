@@ -103,9 +103,11 @@
    - `${output_dir}/prepared/train.parquet`
    - `${output_dir}/prepared/val.parquet`
    - `${output_dir}/images/...`
-4. 写一个 `.hf_dataset_source.json` 标记文件
+4. 解压完成后删除本地图片压缩包，避免重复占用空间
+5. 写一个 `.hf_dataset_source.json` 标记文件
 
 它不会再重写 parquet 里的图片路径。
+默认 `output_dir` 会按 repo id 落到 `data/muyuho/opcdmini`；如果你显式传了 `--data_dir`，才会覆盖这个默认值。
 
 ---
 
@@ -122,7 +124,7 @@
 
 ```bash
 python3 opcdimage_recipe/hf_data_tools.py download \
-  --output-dir data/opcdimage_qwen3vl4b \
+  --output-dir data/muyuho/opcdmini \
   --repo-id muyuho/opcdmini
 ```
 
@@ -130,8 +132,8 @@ python3 opcdimage_recipe/hf_data_tools.py download \
 
 ```bash
 python3 opcdimage_recipe/data_tools.py validate \
-  --train-file data/opcdimage_qwen3vl4b/prepared/train.parquet \
-  --val-file data/opcdimage_qwen3vl4b/prepared/val.parquet
+  --train-file data/muyuho/opcdmini/prepared/train.parquet \
+  --val-file data/muyuho/opcdmini/prepared/val.parquet
 ```
 
 也就是说，当前默认训练链路就是：

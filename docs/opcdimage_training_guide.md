@@ -86,6 +86,10 @@ repo 中包含训练所需的完整内容：
 
 训练启动时，脚本只是把 `muyuho/opcdmini` 里的内容同步到本地工作目录，保留 `prepared/` 和 `images/` 这套目录结构，作为运行时缓存和解压落地点；数据来源本身仍然是 `muyuho/opcdmini`。
 
+默认本地落地点会按 repo id 命名，也就是：
+
+- `data/muyuho/opcdmini`
+
 每条样本至少包含：
 
 - `problem`

@@ -51,6 +51,8 @@ def test_ensure_local_hf_dataset_keeps_relative_paths_and_extracts_archives(tmp_
     assert train_df.loc[0, "crop_images"][0] == "images/crop/sample_crop.png"
     assert (output_dir / "images" / "original_images" / "sample.jpg").exists()
     assert (output_dir / "images" / "crop" / "sample_crop.png").exists()
+    assert not (output_dir / "original_images.tar.gz").exists()
+    assert not (output_dir / "crop_images.tar.gz").exists()
     assert not (output_dir / "train.parquet").exists()
     assert not (output_dir / "val.parquet").exists()
 

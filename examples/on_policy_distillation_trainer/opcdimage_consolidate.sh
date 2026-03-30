@@ -64,6 +64,11 @@ setup_runtime_env() {
   fi
 }
 
+dataset_dir_from_repo_id() {
+  local repo_id="$1"
+  printf '%s/data/%s\n' "${PROJECT_DIR}" "${repo_id}"
+}
+
 init_defaults() {
   PROJECT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
   export PYTHONPATH="${PROJECT_DIR}:${PYTHONPATH:-}"
@@ -80,8 +85,9 @@ init_defaults() {
   # DATA_DIR: 下载后的 HF 数据集目录。
   # 训练会直接读取这个目录下的 prepared/*.parquet，而不是额外拷贝出的文件。
   # HF_DATASET_REPO_ID: 当前统一数据集 repo，包含 prepared/* 和图像压缩包。
-  DATA_DIR="${PROJECT_DIR}/data/opcdimage_qwen3vl4b"
   HF_DATASET_REPO_ID="muyuho/opcdmini"
+  DATA_DIR="$(dataset_dir_from_repo_id "${HF_DATASET_REPO_ID}")"
+  DATA_DIR_EXPLICITLY_SET=0
 
   # Training scale.
   # TRAIN_BATCH_SIZE: 全局 train batch size。
@@ -134,7 +140,7 @@ parse_args() {
       --ref_model_path) REF_MODEL_PATH="$2"; shift 2 ;;
       --exp_name) EXP_NAME="$2"; shift 2 ;;
       --project_name) PROJECT_NAME="$2"; shift 2 ;;
-      --data_dir) DATA_DIR="$2"; shift 2 ;;
+      --data_dir) DATA_DIR="$2"; DATA_DIR_EXPLICITLY_SET=1; shift 2 ;;
       --hf_dataset_repo_id) HF_DATASET_REPO_ID="$2"; shift 2 ;;
       --train_batch_size) TRAIN_BATCH_SIZE="$2"; shift 2 ;;
       --max_prompt_length) MAX_PROMPT_LENGTH="$2"; shift 2 ;;
@@ -170,6 +176,10 @@ parse_args() {
 }
 
 finalize_config() {
+  if [[ "${DATA_DIR_EXPLICITLY_SET}" -eq 0 ]]; then
+    DATA_DIR="$(dataset_dir_from_repo_id "${HF_DATASET_REPO_ID}")"
+  fi
+
   REF_MODEL_PATH=${REF_MODEL_PATH:-$MODEL_PATH}
 
   TRAIN_FILE="${DATA_DIR}/prepared/train.parquet"

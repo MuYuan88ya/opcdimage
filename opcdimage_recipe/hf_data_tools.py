@@ -171,6 +171,15 @@ def _extract_archives_if_needed(snapshot_dir: Path, output_dir: Path) -> None:
                 handle.extractall(output_dir)
 
 
+def _cleanup_downloaded_archives(output_dir: Path) -> None:
+    archive_dirs = [output_dir, output_dir / "archives"]
+    for archive_dir in archive_dirs:
+        for archive_name in HF_ARCHIVE_FILENAMES:
+            archive_path = archive_dir / archive_name
+            if archive_path.exists():
+                archive_path.unlink()
+
+
 def _ensure_prepared_dir(snapshot_dir: Path) -> Path:
     prepared_dir = snapshot_dir / HF_PREPARED_SUBDIR
     if not prepared_dir.exists():
@@ -219,6 +228,7 @@ def ensure_local_hf_dataset(
 
     marker_path = output_dir / ".hf_dataset_source.json"
     if _is_ready_download_dir(output_dir=output_dir, repo_id=repo_id) and not force_download:
+        _cleanup_downloaded_archives(output_dir)
         _cleanup_legacy_root_outputs(output_dir)
         return output_dir
 
@@ -253,6 +263,7 @@ def ensure_local_hf_dataset(
         ),
         encoding="utf-8",
     )
+    _cleanup_downloaded_archives(output_dir)
     _cleanup_legacy_root_outputs(output_dir)
     return output_dir
 
