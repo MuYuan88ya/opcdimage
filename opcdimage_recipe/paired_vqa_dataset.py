@@ -6,6 +6,8 @@ import torch
 from PIL import Image
 
 from verl.utils.dataset.rl_dataset import RLHFDataset
+from verl.utils.model import compute_position_id_with_mask
+import verl.utils.torch_functional as verl_F
 
 
 class OPCDImagePairedVQADataset(RLHFDataset):
@@ -85,16 +87,58 @@ class OPCDImagePairedVQADataset(RLHFDataset):
                 if isinstance(item, dict) and item.get("type") == "image":
                     images.append(item.get("image", item.get("path")))
 
-        model_inputs = self.processor(text=[raw_prompt], images=images, return_tensors="pt")
-        input_ids = model_inputs["input_ids"][0]
-        attention_mask = model_inputs["attention_mask"][0]
-        position_ids = model_inputs.get("position_ids")
-        if position_ids is None:
-            raise ValueError("processor must return position_ids for opcdimage vision training.")
+        model_inputs = dict(self.processor(text=[raw_prompt], images=images, return_tensors="pt"))
+        input_ids = model_inputs.pop("input_ids")
+        attention_mask = model_inputs.pop("attention_mask")
+        input_ids, attention_mask = verl_F.postprocess_data(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            max_length=self.max_prompt_length,
+            pad_token_id=self.tokenizer.pad_token_id,
+            left_pad=True,
+            truncation=self.truncation,
+        )
+
+        is_qwen2vl = (
+            hasattr(self.processor, "image_processor")
+            and "Qwen2VLImageProcessor" in self.processor.image_processor.__class__.__name__
+        )
+        if is_qwen2vl:
+            from verl.models.transformers.qwen2_vl import get_rope_index
+
+            position_ids = get_rope_index(
+                self.processor,
+                input_ids=input_ids.squeeze(0),
+                image_grid_thw=model_inputs.get("image_grid_thw"),
+                video_grid_thw=model_inputs.get("video_grid_thw"),
+                second_per_grid_ts=model_inputs.get("second_per_grid_ts"),
+                attention_mask=attention_mask.squeeze(0),
+            )
+        else:
+            position_ids = compute_position_id_with_mask(attention_mask)[0]
+
+        raw_prompt_ids = self.tokenizer.encode(raw_prompt, add_special_tokens=False)
+        if len(raw_prompt_ids) > self.max_prompt_length:
+            if self.truncation == "left":
+                raw_prompt_ids = raw_prompt_ids[-self.max_prompt_length :]
+            elif self.truncation == "right":
+                raw_prompt_ids = raw_prompt_ids[: self.max_prompt_length]
+            elif self.truncation == "middle":
+                left_half = self.max_prompt_length // 2
+                right_half = self.max_prompt_length - left_half
+                raw_prompt_ids = raw_prompt_ids[:left_half] + raw_prompt_ids[-right_half:]
+            elif self.truncation == "error":
+                raise RuntimeError(f"Prompt length {len(raw_prompt_ids)} is longer than {self.max_prompt_length}.")
+
+        multi_modal_inputs = dict(model_inputs)
+        multi_modal_inputs.pop("second_per_grid_ts", None)
+
         return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "position_ids": position_ids[0],
+            "input_ids": input_ids[0],
+            "attention_mask": attention_mask[0],
+            "position_ids": position_ids,
+            "raw_prompt_ids": raw_prompt_ids,
+            "multi_modal_inputs": multi_modal_inputs,
         }
 
     def __getitem__(self, item):

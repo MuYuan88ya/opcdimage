@@ -2367,6 +2367,14 @@ Solve the new problem and explain what part of experience you use and how you us
                                 gen_batch_with_exp.batch["input_ids"] = torch.stack([inp["input_ids"] for inp in updated_gen_inputs])
                                 gen_batch_with_exp.batch["attention_mask"] = torch.stack([inp["attention_mask"] for inp in updated_gen_inputs])
                                 gen_batch_with_exp.batch["position_ids"] = torch.stack([inp["position_ids"] for inp in updated_gen_inputs])
+                                updated_multi_modal_inputs = [inp.get("multi_modal_inputs") for inp in updated_gen_inputs]
+                                if any(mmi is not None for mmi in updated_multi_modal_inputs):
+                                    multi_modal_inputs_array = np.array(updated_multi_modal_inputs, dtype=object)
+                                    gen_batch_with_exp.non_tensor_batch["multi_modal_inputs"] = multi_modal_inputs_array
+                                    batch_with_exp.non_tensor_batch["multi_modal_inputs"] = multi_modal_inputs_array.copy()
+                                else:
+                                    gen_batch_with_exp.non_tensor_batch.pop("multi_modal_inputs", None)
+                                    batch_with_exp.non_tensor_batch.pop("multi_modal_inputs", None)
                                 gen_batch_with_exp.non_tensor_batch.pop("raw_prompt_ids", None)
                                 gen_batch_with_exp.non_tensor_batch.pop("raw_prompt", None)
 
