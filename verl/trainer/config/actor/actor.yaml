@@ -107,6 +107,15 @@ kl_loss_coef: 0.001
 # Type of KL divergence loss. Options: "kl"(k1), "abs", "mse"(k2), "low_var_kl"(k3), "full"
 kl_loss_type: low_var_kl
 
+# Top-k support size used when kl_loss_type is "full"
+kl_topk: 0
+
+# Whether to renormalize truncated top-k distributions before computing KL
+kl_renorm_topk: false
+
+# Whether to print CUDA profiling information for KL/top-k paths
+profile_kl: false
+
 # Number of PPO epochs per batch
 ppo_epochs: 1
 

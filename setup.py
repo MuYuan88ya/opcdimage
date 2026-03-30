@@ -20,7 +20,7 @@ from setuptools import find_packages, setup
 
 version_folder = os.path.dirname(os.path.join(os.path.abspath(__file__)))
 
-with open(os.path.join(version_folder, "verl/version/version")) as f:
+with open(os.path.join(version_folder, "verl/version/version"), encoding="utf-8") as f:
     __version__ = f.read().strip()
 
 install_requires = [
@@ -45,7 +45,10 @@ install_requires = [
 ]
 
 TEST_REQUIRES = ["pytest", "pre-commit", "py-spy", "pytest-asyncio", "pytest-rerunfailures"]
-PRIME_REQUIRES = ["pyext"]
+# `pyext` relies on `inspect.getargspec`, which is removed in Python 3.11+.
+# Keep the historical extra on older interpreters, but avoid breaking modern
+# editable/project installs where PRIME is not needed for opcdimage.
+PRIME_REQUIRES = ['pyext; python_version < "3.11"']
 GEO_REQUIRES = ["mathruler", "torchvision", "qwen_vl_utils"]
 GPU_REQUIRES = ["liger-kernel", "flash-attn"]
 MATH_REQUIRES = ["math-verify"]  # Add math-verify as an optional dependency
@@ -74,7 +77,7 @@ extras_require = {
 
 
 this_directory = Path(__file__).parent
-long_description = (this_directory / "README.md").read_text()
+long_description = (this_directory / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="verl",
