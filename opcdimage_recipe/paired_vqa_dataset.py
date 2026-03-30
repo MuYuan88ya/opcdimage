@@ -17,10 +17,19 @@ class OPCDImagePairedVQADataset(RLHFDataset):
     prompt_key = "problem"
     image_key = "original_images"
 
+    @staticmethod
+    def _infer_dataset_root(data_file: Path) -> Path:
+        parent = data_file.parent
+        if parent.name == "prepared":
+            candidate = parent.parent
+            if (candidate / "images").exists():
+                return candidate
+        return parent
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         first_data_file = Path(self.data_files[0]).resolve()
-        self.dataset_root = first_data_file.parent
+        self.dataset_root = self._infer_dataset_root(first_data_file)
 
     def _resolve_dataset_path(self, value: Any) -> Any:
         if isinstance(value, str):

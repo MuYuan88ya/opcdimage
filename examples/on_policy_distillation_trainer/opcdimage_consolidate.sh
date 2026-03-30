@@ -77,7 +77,8 @@ init_defaults() {
   PROJECT_NAME="opcdimage_qwen3vl4b"
 
   # Data locations.
-  # DATA_DIR: 训练最终读取的 prepared parquet 目录。
+  # DATA_DIR: 下载后的 HF 数据集目录。
+  # 训练会直接读取这个目录下的 prepared/*.parquet，而不是额外拷贝出的文件。
   # HF_DATASET_REPO_ID: 当前统一数据集 repo，包含 prepared/* 和图像压缩包。
   DATA_DIR="${PROJECT_DIR}/data/opcdimage_qwen3vl4b"
   HF_DATASET_REPO_ID="muyuho/opcdmini"
@@ -171,8 +172,8 @@ parse_args() {
 finalize_config() {
   REF_MODEL_PATH=${REF_MODEL_PATH:-$MODEL_PATH}
 
-  TRAIN_FILE="${DATA_DIR}/train.parquet"
-  VAL_FILE="${DATA_DIR}/val.parquet"
+  TRAIN_FILE="${DATA_DIR}/prepared/train.parquet"
+  VAL_FILE="${DATA_DIR}/prepared/val.parquet"
 
   # 当前脚本把 actor / log_prob 的 micro batch 固定为 1，
   # 再通过 token 上限控制单卡负载，优先保证训练能稳定起。
@@ -208,7 +209,7 @@ finalize_config() {
 prepare_dataset_if_needed() {
   # 只保留一条数据准备路径：
   # 从 opcdmini 下载并自动解压图像压缩包。
-  if [[ -f "${TRAIN_FILE}" && -f "${VAL_FILE}" ]]; then
+  if [[ -f "${TRAIN_FILE}" && -f "${VAL_FILE}" && -f "${DATA_DIR}/.hf_dataset_source.json" ]]; then
     return
   fi
 

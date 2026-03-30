@@ -20,5 +20,5 @@ python3 \
   "$@"
 
 python3 "${PROJECT_DIR}/opcdimage_recipe/data_tools.py" validate \
-  --train-file "${DATA_DIR}/train.parquet" \
-  --val-file "${DATA_DIR}/val.parquet"
+  --train-file "${DATA_DIR}/prepared/train.parquet" \
+  --val-file "${DATA_DIR}/prepared/val.parquet"

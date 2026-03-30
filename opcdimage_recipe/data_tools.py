@@ -97,6 +97,16 @@ def relativize_dataset_path(dataset_root: Path, path_str: str) -> str:
     return rel_path.as_posix()
 
 
+def infer_dataset_root_from_manifest(manifest_path: Path) -> Path:
+    manifest_path = manifest_path.resolve()
+    parent = manifest_path.parent
+    if parent.name == "prepared":
+        candidate = parent.parent
+        if (candidate / "images").exists():
+            return candidate
+    return parent
+
+
 def load_image_size(image_path: str, image_size_cache: dict[str, tuple[int, int]]) -> tuple[int, int]:
     cached = image_size_cache.get(image_path)
     if cached is not None:
@@ -313,8 +323,8 @@ def run_validate(args: argparse.Namespace) -> None:
     train_frame = pd.read_parquet(train_file)
     val_frame = pd.read_parquet(val_file)
 
-    train_stats = validate_frame(train_frame, "train", dataset_root=train_file.parent)
-    val_stats = validate_frame(val_frame, "val", dataset_root=val_file.parent)
+    train_stats = validate_frame(train_frame, "train", dataset_root=infer_dataset_root_from_manifest(train_file))
+    val_stats = validate_frame(val_frame, "val", dataset_root=infer_dataset_root_from_manifest(val_file))
 
     train_images = {row["extra_info"]["original_image"] for row in train_frame.to_dict("records")}
     val_images = {row["extra_info"]["original_image"] for row in val_frame.to_dict("records")}
@@ -344,8 +354,12 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.set_defaults(func=run_prepare)
 
     validate = subparsers.add_parser("validate", help="Validate prepared train/val parquet.")
-    validate.add_argument("--train-file", type=Path, default=Path("data") / "opcdimage_qwen3vl4b" / "train.parquet")
-    validate.add_argument("--val-file", type=Path, default=Path("data") / "opcdimage_qwen3vl4b" / "val.parquet")
+    validate.add_argument(
+        "--train-file", type=Path, default=Path("data") / "opcdimage_qwen3vl4b" / "prepared" / "train.parquet"
+    )
+    validate.add_argument(
+        "--val-file", type=Path, default=Path("data") / "opcdimage_qwen3vl4b" / "prepared" / "val.parquet"
+    )
     validate.set_defaults(func=run_validate)
     return parser
 

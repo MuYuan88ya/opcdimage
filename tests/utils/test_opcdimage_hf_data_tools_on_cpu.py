@@ -46,11 +46,13 @@ def test_ensure_local_hf_dataset_keeps_relative_paths_and_extracts_archives(tmp_
     output_dir = tmp_path / "downloaded"
     ensure_local_hf_dataset(output_dir=output_dir, repo_id=f"file://{dataset_repo}")
 
-    train_df = pd.read_parquet(output_dir / "train.parquet")
+    train_df = pd.read_parquet(output_dir / "prepared" / "train.parquet")
     assert train_df.loc[0, "original_images"][0] == "images/original_images/sample.jpg"
     assert train_df.loc[0, "crop_images"][0] == "images/crop/sample_crop.png"
     assert (output_dir / "images" / "original_images" / "sample.jpg").exists()
     assert (output_dir / "images" / "crop" / "sample_crop.png").exists()
+    assert not (output_dir / "train.parquet").exists()
+    assert not (output_dir / "val.parquet").exists()
 
     extra_info = train_df.loc[0, "extra_info"]
     assert extra_info["original_image"] == "images/original_images/sample.jpg"

@@ -131,7 +131,13 @@ def run_export(args: argparse.Namespace) -> None:
 def _resolve_repo_path(repo_id: str, output_dir: Path, *, allow_patterns: list[str], force_download: bool) -> Path:
     local_repo_path = repo_id.removeprefix("file://")
     if Path(local_repo_path).exists():
-        return Path(local_repo_path).resolve()
+        local_repo_path = Path(local_repo_path).resolve()
+        if force_download and output_dir.exists():
+            shutil.rmtree(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+        if local_repo_path != output_dir:
+            shutil.copytree(local_repo_path, output_dir, dirs_exist_ok=True)
+        return output_dir.resolve()
 
     return Path(
         snapshot_download(
@@ -165,26 +171,41 @@ def _extract_archives_if_needed(snapshot_dir: Path, output_dir: Path) -> None:
                 handle.extractall(output_dir)
 
 
-def _copy_prepared_outputs(snapshot_dir: Path, output_dir: Path) -> None:
+def _ensure_prepared_dir(snapshot_dir: Path) -> Path:
     prepared_dir = snapshot_dir / HF_PREPARED_SUBDIR
     if not prepared_dir.exists():
         raise FileNotFoundError(f"Missing prepared directory: {prepared_dir}")
-
     for split in ["train", "val"]:
-        parquet_src = prepared_dir / f"{split}.parquet"
-        jsonl_src = prepared_dir / f"{split}.jsonl"
-        if not parquet_src.exists():
-            raise FileNotFoundError(f"Missing prepared split: {parquet_src}")
+        parquet_path = prepared_dir / f"{split}.parquet"
+        if not parquet_path.exists():
+            raise FileNotFoundError(f"Missing prepared split: {parquet_path}")
+    return prepared_dir
 
-        shutil.copy2(parquet_src, output_dir / f"{split}.parquet")
-        if jsonl_src.exists():
-            shutil.copy2(jsonl_src, output_dir / f"{split}.jsonl")
 
-    summary_src = snapshot_dir / "summary.json"
-    if summary_src.exists():
-        summary_dst = output_dir / "summary.json"
-        if summary_src.resolve() != summary_dst.resolve():
-            shutil.copy2(summary_src, summary_dst)
+def _is_ready_download_dir(output_dir: Path, repo_id: str) -> bool:
+    marker_path = output_dir / ".hf_dataset_source.json"
+    prepared_dir = output_dir / HF_PREPARED_SUBDIR
+    image_root = output_dir / "images"
+    if not marker_path.exists():
+        return False
+    if not prepared_dir.exists():
+        return False
+    if not (prepared_dir / "train.parquet").exists() or not (prepared_dir / "val.parquet").exists():
+        return False
+    if not (image_root / "original_images").exists() or not (image_root / "crop").exists():
+        return False
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return marker.get("repo_id") == repo_id
+
+
+def _cleanup_legacy_root_outputs(output_dir: Path) -> None:
+    for filename in ["train.parquet", "val.parquet", "train.jsonl", "val.jsonl"]:
+        legacy_path = output_dir / filename
+        if legacy_path.exists():
+            legacy_path.unlink()
 
 
 def ensure_local_hf_dataset(
@@ -196,10 +217,9 @@ def ensure_local_hf_dataset(
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    train_path = output_dir / "train.parquet"
-    val_path = output_dir / "val.parquet"
     marker_path = output_dir / ".hf_dataset_source.json"
-    if train_path.exists() and val_path.exists() and marker_path.exists() and not force_download:
+    if _is_ready_download_dir(output_dir=output_dir, repo_id=repo_id) and not force_download:
+        _cleanup_legacy_root_outputs(output_dir)
         return output_dir
 
     snapshot_dir = _resolve_repo_path(
@@ -217,8 +237,8 @@ def ensure_local_hf_dataset(
         force_download=force_download,
     )
 
+    _ensure_prepared_dir(snapshot_dir=snapshot_dir)
     _extract_archives_if_needed(snapshot_dir=snapshot_dir, output_dir=output_dir)
-    _copy_prepared_outputs(snapshot_dir=snapshot_dir, output_dir=output_dir)
 
     marker_path.write_text(
         json.dumps(
@@ -233,6 +253,7 @@ def ensure_local_hf_dataset(
         ),
         encoding="utf-8",
     )
+    _cleanup_legacy_root_outputs(output_dir)
     return output_dir
 
 

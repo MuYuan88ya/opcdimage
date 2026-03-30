@@ -69,12 +69,13 @@
 
 逻辑是：
 
-1. 读取 `train.parquet` / `val.parquet`
+1. 读取 `prepared/train.parquet` / `prepared/val.parquet`
 2. 取 `parquet` 文件所在目录作为 `dataset_root`
-3. 把样本里的相对图片路径解析成：
+3. 如果 parquet 位于 `prepared/` 下，就把上一级数据集目录作为真正的 `dataset_root`
+4. 把样本里的相对图片路径解析成：
    - `${dataset_root}/images/original_images/...`
    - `${dataset_root}/images/crop/...`
-4. 再把解析后的绝对路径送给 processor / trainer
+5. 再把解析后的绝对路径送给 processor / trainer
 
 所以：
 
@@ -98,9 +99,10 @@
    - `crop_images.tar.gz`
    - 如果 repo 里已经展开了 `images/*`，也允许直接拉
 2. 如果本地还没有 `images/original_images` 和 `images/crop`，就自动解压两个压缩包
-3. 把：
-   - `prepared/train.parquet` 复制到 `${output_dir}/train.parquet`
-   - `prepared/val.parquet` 复制到 `${output_dir}/val.parquet`
+3. 保留下载得到的 repo 目录结构：
+   - `${output_dir}/prepared/train.parquet`
+   - `${output_dir}/prepared/val.parquet`
+   - `${output_dir}/images/...`
 4. 写一个 `.hf_dataset_source.json` 标记文件
 
 它不会再重写 parquet 里的图片路径。
@@ -115,7 +117,7 @@
 
 数据准备逻辑已经化简成：
 
-1. 如果 `${DATA_DIR}/train.parquet` 和 `${DATA_DIR}/val.parquet` 已经存在，直接进入训练
+1. 如果 `${DATA_DIR}/prepared/train.parquet` 和 `${DATA_DIR}/prepared/val.parquet` 以及数据来源标记都已经存在，直接进入训练
 2. 否则执行：
 
 ```bash
@@ -128,8 +130,8 @@ python3 opcdimage_recipe/hf_data_tools.py download \
 
 ```bash
 python3 opcdimage_recipe/data_tools.py validate \
-  --train-file data/opcdimage_qwen3vl4b/train.parquet \
-  --val-file data/opcdimage_qwen3vl4b/val.parquet
+  --train-file data/opcdimage_qwen3vl4b/prepared/train.parquet \
+  --val-file data/opcdimage_qwen3vl4b/prepared/val.parquet
 ```
 
 也就是说，当前默认训练链路就是：
