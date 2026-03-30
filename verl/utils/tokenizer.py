@@ -13,6 +13,7 @@
 # limitations under the License.
 """Utils for tokenization."""
 
+import os
 import types
 import warnings
 
@@ -101,6 +102,54 @@ def hf_tokenizer(name_or_path, correct_pad_token=True, correct_gemma2=True, **kw
     return tokenizer
 
 
+def _read_int_env(var_name: str):
+    value = os.getenv(var_name)
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except ValueError as e:
+        raise ValueError(f"{var_name} must be an integer, got: {value!r}") from e
+
+
+def _normalize_hw(value):
+    if isinstance(value, int):
+        return value, value
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        return int(value[0]), int(value[1])
+    if value is None:
+        raise ValueError("patch_size is required to derive max_pixels from max_image_tokens")
+    return int(value), int(value)
+
+
+def _max_pixels_from_image_tokens(image_processor, max_image_tokens: int) -> int | None:
+    patch_h, patch_w = _normalize_hw(getattr(image_processor, "patch_size", None))
+    merge_size = int(getattr(image_processor, "merge_size", 1))
+    pixels_per_visual_token = patch_h * patch_w * merge_size * merge_size
+    return int(max_image_tokens) * pixels_per_visual_token
+
+
+def _apply_image_processor_limits(processor, *, max_pixels: int | None, min_pixels: int | None):
+    image_processor = getattr(processor, "image_processor", None)
+    if image_processor is None:
+        return
+
+    size = getattr(image_processor, "size", None)
+    if not isinstance(size, dict):
+        size = {}
+
+    if min_pixels is not None:
+        size["shortest_edge"] = int(min_pixels)
+        setattr(image_processor, "min_pixels", int(min_pixels))
+
+    if max_pixels is not None:
+        size["longest_edge"] = int(max_pixels)
+        setattr(image_processor, "max_pixels", int(max_pixels))
+
+    if size:
+        image_processor.size = size
+
+
 def hf_processor(name_or_path, **kwargs):
     """Create a huggingface processor to process multimodal data.
 
@@ -113,6 +162,20 @@ def hf_processor(name_or_path, **kwargs):
         tokenizer backends such as ``TokenizersBackend``).
     """
     from transformers import AutoConfig, AutoProcessor, PreTrainedTokenizerBase
+
+    explicit_min_pixels = kwargs.pop("min_pixels", None)
+    explicit_max_pixels = kwargs.pop("max_pixels", None)
+    explicit_max_image_tokens = kwargs.pop("max_image_tokens", None)
+
+    env_min_pixels = _read_int_env("VERL_PROCESSOR_MIN_PIXELS")
+    env_max_pixels = _read_int_env("VERL_PROCESSOR_MAX_PIXELS")
+    env_max_image_tokens = _read_int_env("VERL_PROCESSOR_MAX_IMAGE_TOKENS")
+
+    min_pixels = explicit_min_pixels if explicit_min_pixels is not None else env_min_pixels
+    max_pixels = explicit_max_pixels if explicit_max_pixels is not None else env_max_pixels
+    max_image_tokens = (
+        explicit_max_image_tokens if explicit_max_image_tokens is not None else env_max_image_tokens
+    )
 
     try:
         processor = AutoProcessor.from_pretrained(name_or_path, **kwargs)
@@ -153,6 +216,23 @@ def hf_processor(name_or_path, **kwargs):
             processor.get_rope_index = types.MethodType(model_class.get_rope_index, processor)
             if hasattr(model_class, "get_vision_position_ids"):
                 processor.get_vision_position_ids = types.MethodType(model_class.get_vision_position_ids, processor)
+
+        if processor is not None and getattr(processor, "image_processor", None) is not None:
+            resolved_max_pixels = max_pixels
+            if resolved_max_pixels is None and max_image_tokens is not None:
+                resolved_max_pixels = _max_pixels_from_image_tokens(processor.image_processor, max_image_tokens)
+                warnings.warn(
+                    (
+                        f"Apply processor image cap: max_image_tokens={max_image_tokens} -> "
+                        f"max_pixels={resolved_max_pixels}"
+                    ),
+                    stacklevel=1,
+                )
+            _apply_image_processor_limits(
+                processor,
+                max_pixels=resolved_max_pixels,
+                min_pixels=min_pixels,
+            )
     except Exception as e:
         processor = None
         # TODO(haibin.lin): try-catch should be removed after adding transformer version req to setup.py to avoid
