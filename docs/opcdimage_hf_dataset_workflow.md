@@ -9,13 +9,11 @@
 
 默认使用的 Hugging Face dataset repo id 为：
 
-- prepared parquet manifest：`muyuho/opcdimage_mini`
-- 图片压缩包：`muyuho/opcdmini`
+- `muyuho/opcdmini`
 
 也可以通过环境变量覆盖：
 
 - `OPCDIMAGE_HF_DATASET_REPO_ID`
-- `OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID`
 - `OPCDIMAGE_PROXY`
 
 ---
@@ -71,7 +69,7 @@
    - `images/**/*`
    - `summary.json`
 2. 将下载后的相对路径 manifest 重写成本地绝对路径 manifest
-3. 如果图片来自 `opcdmini` 这种 archive repo，会先自动解压 `original_images.tar.gz` 和 `crop_images.tar.gz`
+3. 自动解压 `original_images.tar.gz` 和 `crop_images.tar.gz`
 3. 在目标目录下生成：
    - `train.parquet`
    - `val.parquet`
@@ -132,9 +130,9 @@ export OPCDIMAGE_PROXY="http://127.0.0.1:7897"
 
 ## 4. 当前本地已导出的 HF-ready 目录
 
-当前已经在本地导出了一份可上传目录：
+当前推荐在本地维护一份待上传目录，例如：
 
-- `C:\Users\LU\Desktop\rl4image\opcdimage\hf_dataset\opcdimage_mini`
+- `C:\Users\LU\Desktop\rl4image\opcdimage\hf_dataset\opcdmini_publish`
 
 目录里已经包含：
 
@@ -179,8 +177,7 @@ bash examples/on_policy_distillation_trainer/prepare_opcdimage_data.sh
 ### 方案 C：切换到别的 dataset repo
 
 ```bash
-export OPCDIMAGE_HF_DATASET_REPO_ID="your-name/your-prepared-repo"
-export OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID="your-name/your-image-archive-repo"
+export OPCDIMAGE_HF_DATASET_REPO_ID="your-name/your-opcdmini-repo"
 bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
 ```
 
@@ -192,7 +189,7 @@ bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
 export HF_TOKEN="your-token"
 export OPCDIMAGE_PROXY="http://127.0.0.1:7897"
 uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dataset.py \
-  --local-dir hf_dataset/opcdimage_mini/archives \
+  --local-dir hf_dataset/opcdmini_publish/archives \
   --repo-id muyuho/opcdmini \
   --exist-ok \
   --skip-existing \
@@ -204,7 +201,7 @@ uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dat
 
 ```bash
 uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dataset.py \
-  --local-dir hf_dataset/opcdimage_mini/archives \
+  --local-dir hf_dataset/opcdmini_publish/archives \
   --repo-id muyuho/opcdmini \
   --exist-ok \
   --skip-existing \
@@ -238,8 +235,7 @@ bash examples/on_policy_distillation_trainer/upload_opcdimage_hf_dataset.sh
 
 当前正在进行：
 
-- prepared repo：`muyuho/opcdimage_mini`
-- image archive repo：`muyuho/opcdmini`
+- 目标 repo：`muyuho/opcdmini`
 - prepared 文件与部分图像已经上传
 - 仍有剩余图像需要续传
 

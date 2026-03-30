@@ -18,7 +18,6 @@ Common options:
   --project_name NAME
   --data_dir DIR
   --hf_dataset_repo_id REPO
-  --hf_image_dataset_repo_id REPO
   --train_batch_size N
   --max_prompt_length N
   --max_response_length N
@@ -80,11 +79,9 @@ init_defaults() {
   # Data locations.
   # DATA_DIR: 训练最终读取的 prepared parquet 目录。
   # SOURCE_CSV / SOURCE_ROOT: 本地 ZwZ-RL-VQA-mini 原始数据入口。
-  # HF_DATASET_REPO_ID: prepared parquet manifest 所在 repo。
-  # HF_IMAGE_DATASET_REPO_ID: 图像压缩包所在 repo，下载后会自动解压。
+  # HF_DATASET_REPO_ID: 当前统一数据集 repo，包含 prepared/* 和图像压缩包。
   DATA_DIR="${PROJECT_DIR}/data/opcdimage_qwen3vl4b"
-  HF_DATASET_REPO_ID="muyuho/opcdimage_mini"
-  HF_IMAGE_DATASET_REPO_ID="muyuho/opcdmini"
+  HF_DATASET_REPO_ID="muyuho/opcdmini"
   SOURCE_CSV="${PROJECT_DIR}/../ZwZ-RL-VQA-mini/train_crop_clean.csv"
   SOURCE_ROOT="${PROJECT_DIR}/../ZwZ-RL-VQA-mini"
 
@@ -141,7 +138,6 @@ parse_args() {
       --project_name) PROJECT_NAME="$2"; shift 2 ;;
       --data_dir) DATA_DIR="$2"; shift 2 ;;
       --hf_dataset_repo_id) HF_DATASET_REPO_ID="$2"; shift 2 ;;
-      --hf_image_dataset_repo_id) HF_IMAGE_DATASET_REPO_ID="$2"; shift 2 ;;
       --train_batch_size) TRAIN_BATCH_SIZE="$2"; shift 2 ;;
       --max_prompt_length) MAX_PROMPT_LENGTH="$2"; shift 2 ;;
       --max_response_length) MAX_RESPONSE_LENGTH="$2"; shift 2 ;;
@@ -231,8 +227,7 @@ prepare_dataset_if_needed() {
   python3 \
     "${PROJECT_DIR}/opcdimage_recipe/hf_data_tools.py" download \
     --output-dir "${DATA_DIR}" \
-    --repo-id "${HF_DATASET_REPO_ID}" \
-    --image-repo-id "${HF_IMAGE_DATASET_REPO_ID}"
+    --repo-id "${HF_DATASET_REPO_ID}"
 }
 
 validate_dataset() {

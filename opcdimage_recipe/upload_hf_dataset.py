@@ -8,7 +8,7 @@ from pathlib import Path
 from huggingface_hub import CommitOperationAdd, HfApi
 from huggingface_hub.errors import HfHubHTTPError
 
-HF_DATASET_REPO_ID = os.environ.get("OPCDIMAGE_HF_DATASET_REPO_ID", "muyuho/opcdimage_mini")
+HF_DATASET_REPO_ID = os.environ.get("OPCDIMAGE_HF_DATASET_REPO_ID", "muyuho/opcdmini")
 
 
 def _configure_proxy_from_env() -> None:

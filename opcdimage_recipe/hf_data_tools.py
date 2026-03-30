@@ -11,8 +11,8 @@ from typing import Any
 import pandas as pd
 from huggingface_hub import snapshot_download
 
-HF_DATASET_REPO_ID = os.environ.get("OPCDIMAGE_HF_DATASET_REPO_ID", "muyuho/opcdimage_mini")
-HF_IMAGE_DATASET_REPO_ID = os.environ.get("OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID", "muyuho/opcdmini")
+HF_DATASET_REPO_ID = os.environ.get("OPCDIMAGE_HF_DATASET_REPO_ID", "muyuho/opcdmini")
+HF_IMAGE_DATASET_REPO_ID = None
 HF_PREPARED_SUBDIR = "prepared"
 HF_ARCHIVE_FILENAMES = {
     "original": "original_images.tar.gz",
@@ -192,6 +192,7 @@ def _extract_image_archives(snapshot_dir: Path, output_dir: Path) -> dict[str, s
 
 def _ensure_image_tree(
     prepared_snapshot_dir: Path,
+    prepared_repo_id: str,
     output_dir: Path,
     *,
     image_repo_id: str | None,
@@ -209,7 +210,7 @@ def _ensure_image_tree(
         }
 
     archive_snapshot_dir = prepared_snapshot_dir
-    if image_repo_id and image_repo_id != HF_DATASET_REPO_ID:
+    if image_repo_id and image_repo_id != prepared_repo_id:
         archive_snapshot_dir = _resolve_repo_path(
             image_repo_id,
             output_dir=output_dir,
@@ -270,6 +271,9 @@ def ensure_local_hf_dataset(
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    if not image_repo_id:
+        image_repo_id = repo_id
+
     train_path = output_dir / "train.parquet"
     val_path = output_dir / "val.parquet"
     marker_path = output_dir / ".hf_dataset_source.json"
@@ -283,6 +287,9 @@ def ensure_local_hf_dataset(
             "README.md",
             "summary.json",
             "prepared/*",
+            HF_ARCHIVE_FILENAMES["original"],
+            HF_ARCHIVE_FILENAMES["crop"],
+            "archives/*",
             "images/*",
             "images/**/*",
         ],
@@ -291,6 +298,7 @@ def ensure_local_hf_dataset(
 
     image_info = _ensure_image_tree(
         prepared_snapshot_dir=snapshot_dir,
+        prepared_repo_id=repo_id,
         output_dir=output_dir,
         image_repo_id=image_repo_id,
         force_download=force_download,
@@ -302,7 +310,9 @@ def ensure_local_hf_dataset(
 
     summary_src = snapshot_dir / "summary.json"
     if summary_src.exists():
-        shutil.copy2(summary_src, output_dir / "summary.json")
+        summary_dst = output_dir / "summary.json"
+        if summary_src.resolve() != summary_dst.resolve():
+            shutil.copy2(summary_src, summary_dst)
 
     marker_path.write_text(
         json.dumps(
@@ -326,12 +336,11 @@ def run_download(args: argparse.Namespace) -> None:
     dataset_dir = ensure_local_hf_dataset(
         output_dir=args.output_dir,
         repo_id=args.repo_id,
-        image_repo_id=args.image_repo_id,
         force_download=args.force_download,
     )
     print(
         json.dumps(
-            {"dataset_dir": str(dataset_dir), "repo_id": args.repo_id, "image_repo_id": args.image_repo_id},
+            {"dataset_dir": str(dataset_dir), "repo_id": args.repo_id},
             ensure_ascii=False,
         )
     )
@@ -350,7 +359,6 @@ def build_parser() -> argparse.ArgumentParser:
     download_parser = subparsers.add_parser("download", help="Download the HF-ready dataset and rewrite paths.")
     download_parser.add_argument("--output-dir", type=Path, required=True)
     download_parser.add_argument("--repo-id", type=str, default=HF_DATASET_REPO_ID)
-    download_parser.add_argument("--image-repo-id", type=str, default=HF_IMAGE_DATASET_REPO_ID)
     download_parser.add_argument("--force-download", action="store_true")
     return parser
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ID="${OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID:-muyuho/opcdmini}"
-LOCAL_DIR="${OPCDIMAGE_HF_LOCAL_DIR:-hf_dataset/opcdimage_mini/archives}"
+REPO_ID="${OPCDIMAGE_HF_DATASET_REPO_ID:-muyuho/opcdmini}"
+LOCAL_DIR="${OPCDIMAGE_HF_LOCAL_DIR:-hf_dataset/opcdmini_publish/archives}"
 MODE="${OPCDIMAGE_HF_UPLOAD_MODE:-large-folder}"
 NUM_WORKERS="${OPCDIMAGE_HF_UPLOAD_WORKERS:-8}"
 ONLY_CROP="${OPCDIMAGE_HF_ONLY_CROP:-false}"
