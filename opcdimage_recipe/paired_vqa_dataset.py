@@ -1,5 +1,6 @@
 import copy
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -15,6 +16,27 @@ class OPCDImagePairedVQADataset(RLHFDataset):
 
     prompt_key = "problem"
     image_key = "original_images"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        first_data_file = Path(self.data_files[0]).resolve()
+        self.dataset_root = first_data_file.parent
+
+    def _resolve_dataset_path(self, value: Any) -> Any:
+        if isinstance(value, str):
+            path = Path(value)
+            if path.is_absolute():
+                return str(path)
+            return str((self.dataset_root / path).resolve())
+        if isinstance(value, list):
+            return [self._resolve_dataset_path(item) for item in value]
+        if isinstance(value, dict):
+            resolved = dict(value)
+            for key in ("original_image", "crop_image"):
+                if key in resolved:
+                    resolved[key] = self._resolve_dataset_path(resolved[key])
+            return resolved
+        return value
 
     @staticmethod
     def _normalize_image_payload(image: Any) -> dict[str, Any]:
@@ -143,6 +165,10 @@ class OPCDImagePairedVQADataset(RLHFDataset):
 
     def __getitem__(self, item):
         row_dict: dict = copy.deepcopy(self.dataframe[item])
+        row_dict["original_images"] = self._resolve_dataset_path(row_dict.get("original_images") or [])
+        row_dict["crop_images"] = self._resolve_dataset_path(row_dict.get("crop_images") or [])
+        if "extra_info" in row_dict and row_dict["extra_info"] is not None:
+            row_dict["extra_info"] = self._resolve_dataset_path(row_dict["extra_info"])
         row_dict["raw_prompt"] = self._build_messages(row_dict)
         row_dict["dummy_tensor"] = torch.tensor([0], dtype=torch.uint8)
 

@@ -78,12 +78,9 @@ init_defaults() {
 
   # Data locations.
   # DATA_DIR: 训练最终读取的 prepared parquet 目录。
-  # SOURCE_CSV / SOURCE_ROOT: 本地 ZwZ-RL-VQA-mini 原始数据入口。
   # HF_DATASET_REPO_ID: 当前统一数据集 repo，包含 prepared/* 和图像压缩包。
   DATA_DIR="${PROJECT_DIR}/data/opcdimage_qwen3vl4b"
   HF_DATASET_REPO_ID="muyuho/opcdmini"
-  SOURCE_CSV="${PROJECT_DIR}/../ZwZ-RL-VQA-mini/train_crop_clean.csv"
-  SOURCE_ROOT="${PROJECT_DIR}/../ZwZ-RL-VQA-mini"
 
   # Training scale.
   # TRAIN_BATCH_SIZE: 全局 train batch size。
@@ -209,18 +206,9 @@ finalize_config() {
 }
 
 prepare_dataset_if_needed() {
-  # 优先使用已经准备好的 parquet；
-  # 如果没有，再尝试本地 prepare；再没有就走 HF prepared dataset 下载。
+  # 只保留一条数据准备路径：
+  # 从 opcdmini 下载并自动解压图像压缩包。
   if [[ -f "${TRAIN_FILE}" && -f "${VAL_FILE}" ]]; then
-    return
-  fi
-
-  if [[ -f "${SOURCE_CSV}" && -d "${SOURCE_ROOT}" ]]; then
-    python3 \
-      "${PROJECT_DIR}/opcdimage_recipe/data_tools.py" prepare \
-      --input "${SOURCE_CSV}" \
-      --dataset-root "${SOURCE_ROOT}" \
-      --output-dir "${DATA_DIR}"
     return
   fi
 

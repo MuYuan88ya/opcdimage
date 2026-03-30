@@ -37,7 +37,7 @@ reward 的定义很简单：
 
 ## 2. 数据输入要求
 
-训练脚本最终依赖的是 prepared dataset，而不是原始 CSV。默认位置是：
+训练脚本最终依赖的是 prepared dataset。默认位置是：
 
 - `data/opcdimage_qwen3vl4b/train.parquet`
 - `data/opcdimage_qwen3vl4b/val.parquet`
@@ -60,6 +60,13 @@ reward 的定义很简单：
 - `extra_info.crop_image`：必须与 `crop_images[0]` 一致
 - `extra_info.original_image`：必须与 `original_images[0]` 一致
 
+现在这些图片路径默认存成相对路径，例如：
+
+- `images/original_images/...`
+- `images/crop/...`
+
+训练运行时会以 `train.parquet` / `val.parquet` 所在目录为根，把这些相对路径解析成真实本地路径，所以不需要在下载后再改写 manifest。
+
 训练前建议先跑一次：
 
 ```bash
@@ -79,46 +86,25 @@ python opcdimage_recipe/data_tools.py validate \
 
 ## 3. 数据从哪里来
 
-脚本会优先检查 prepared dataset 是否已经存在；如果不存在，会自动走下面两条路之一：
+现在默认只保留一条数据准备路径：从 Hugging Face 直接下载并解压。
 
-### 3.1 本地原始数据
-
-如果本地有：
-
-- `../ZwZ-RL-VQA-mini/train_crop_clean.csv`
-- `../ZwZ-RL-VQA-mini/`
-
-就会自动执行本地 prepare。
-
-你也可以手动先准备：
-
-```bash
-bash examples/on_policy_distillation_trainer/prepare_opcdimage_data.sh
-```
-
-或者显式指定路径：
-
-```bash
-python opcdimage_recipe/data_tools.py prepare \
-  --input ../ZwZ-RL-VQA-mini/train_crop_clean.csv \
-  --dataset-root ../ZwZ-RL-VQA-mini \
-  --output-dir data/opcdimage_qwen3vl4b
-```
-
-### 3.2 Hugging Face prepared dataset
-
-如果本地原始数据不存在，脚本会自动从：
+默认 repo 是：
 
 - `muyuho/opcdmini`
 
-拉取完整训练数据。这个 repo 同时包含：
+这个 repo 同时包含：
 
 - `prepared/train.parquet`
 - `prepared/val.parquet`
 - `original_images.tar.gz`
 - `crop_images.tar.gz`
 
-下载时会自动把图片压缩包解压成训练可直接读取的 `images/...` 目录。
+训练脚本会先检查：
+
+- `data/opcdimage_qwen3vl4b/train.parquet`
+- `data/opcdimage_qwen3vl4b/val.parquet`
+
+如果这两个文件不存在，就自动执行下载和解压。下载后 parquet 仍然保留相对路径，运行时再解析。
 
 你也可以手动执行：
 
@@ -139,7 +125,7 @@ bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
 这条命令会自动做：
 
 1. 检查数据是否存在
-2. 必要时准备或下载数据
+2. 必要时下载并解压数据
 3. 校验数据
 4. 启动 `verl.trainer.main_ppo`
 

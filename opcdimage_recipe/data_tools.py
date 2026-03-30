@@ -79,11 +79,22 @@ def ensure_single_item_list(value, field_name: str):
     return items
 
 
-def resolve_image_path(dataset_root: Path, rel_path: str) -> str:
-    abs_path = (dataset_root / rel_path).resolve()
+def resolve_dataset_path(dataset_root: Path, path_str: str) -> Path:
+    path = Path(path_str)
+    abs_path = path if path.is_absolute() else (dataset_root / path)
+    abs_path = abs_path.resolve()
     if not abs_path.exists():
         raise FileNotFoundError(f"Image path does not exist: {abs_path}")
-    return str(abs_path)
+    return abs_path
+
+
+def relativize_dataset_path(dataset_root: Path, path_str: str) -> str:
+    abs_path = resolve_dataset_path(dataset_root, path_str)
+    try:
+        rel_path = abs_path.relative_to(dataset_root.resolve())
+    except ValueError as exc:
+        raise ValueError(f"Path {abs_path} is not under dataset root {dataset_root}") from exc
+    return rel_path.as_posix()
 
 
 def load_image_size(image_path: str, image_size_cache: dict[str, tuple[int, int]]) -> tuple[int, int]:
@@ -131,20 +142,22 @@ def build_sample(
     if len(crop_images) != 1:
         raise ValueError(f"Expected one crop image per sample, got {len(crop_images)}")
 
-    original_image = resolve_image_path(dataset_root, original_images[0])
-    crop_image = resolve_image_path(dataset_root, crop_images[0])
+    original_image = resolve_dataset_path(dataset_root, original_images[0])
+    crop_image = resolve_dataset_path(dataset_root, crop_images[0])
+    original_image_rel = relativize_dataset_path(dataset_root, original_images[0])
+    crop_image_rel = relativize_dataset_path(dataset_root, crop_images[0])
     bbox = parse_bbox(row["bbox"])
     normalized_problem = normalize_problem(str(row["problem"]))
     answer = str(row["answer"]).strip()
-    split = assign_split(original_image, val_ratio=val_ratio, seed=seed)
-    original_width, original_height = load_image_size(original_image, image_size_cache=image_size_cache)
-    crop_width, crop_height = load_image_size(crop_image, image_size_cache=image_size_cache)
+    split = assign_split(original_image_rel, val_ratio=val_ratio, seed=seed)
+    original_width, original_height = load_image_size(str(original_image), image_size_cache=image_size_cache)
+    crop_width, crop_height = load_image_size(str(crop_image), image_size_cache=image_size_cache)
     bbox_area_ratio = compute_bbox_area_ratio(bbox, image_width=original_width, image_height=original_height)
 
     sample = PreparedSample(
         problem=normalized_problem,
-        original_images=[original_image],
-        crop_images=[crop_image],
+        original_images=[original_image_rel],
+        crop_images=[crop_image_rel],
         bbox=bbox,
         answer=answer,
         ability=str(row.get("ability", "")),
@@ -154,8 +167,8 @@ def build_sample(
             "split": split,
             "question": normalized_problem.replace("<image>", "", 1).strip(),
             "raw_problem": str(row["problem"]),
-            "original_image": original_image,
-            "crop_image": crop_image,
+            "original_image": original_image_rel,
+            "crop_image": crop_image_rel,
             "original_width": original_width,
             "original_height": original_height,
             "crop_width": crop_width,
@@ -233,7 +246,7 @@ def run_prepare(args: argparse.Namespace) -> None:
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
-def validate_frame(frame: pd.DataFrame, split_name: str) -> dict:
+def validate_frame(frame: pd.DataFrame, split_name: str, dataset_root: Path) -> dict:
     required_columns = {
         "problem",
         "original_images",
@@ -261,10 +274,8 @@ def validate_frame(frame: pd.DataFrame, split_name: str) -> dict:
         reward_model = row["reward_model"]
         extra_info = row["extra_info"]
 
-        if not Path(images[0]).exists():
-            raise FileNotFoundError(f"{split_name}: student image not found: {images[0]}")
-        if not Path(crop_images[0]).exists():
-            raise FileNotFoundError(f"{split_name}: crop image not found: {crop_images[0]}")
+        resolve_dataset_path(dataset_root, images[0])
+        resolve_dataset_path(dataset_root, crop_images[0])
         if reward_model.get("ground_truth") != row["answer"]:
             raise ValueError(f"{split_name}: reward_model.ground_truth mismatch.")
 
@@ -297,11 +308,13 @@ def validate_frame(frame: pd.DataFrame, split_name: str) -> dict:
 
 
 def run_validate(args: argparse.Namespace) -> None:
-    train_frame = pd.read_parquet(args.train_file.resolve())
-    val_frame = pd.read_parquet(args.val_file.resolve())
+    train_file = args.train_file.resolve()
+    val_file = args.val_file.resolve()
+    train_frame = pd.read_parquet(train_file)
+    val_frame = pd.read_parquet(val_file)
 
-    train_stats = validate_frame(train_frame, "train")
-    val_stats = validate_frame(val_frame, "val")
+    train_stats = validate_frame(train_frame, "train", dataset_root=train_file.parent)
+    val_stats = validate_frame(val_frame, "val", dataset_root=val_file.parent)
 
     train_images = {row["extra_info"]["original_image"] for row in train_frame.to_dict("records")}
     val_images = {row["extra_info"]["original_image"] for row in val_frame.to_dict("records")}

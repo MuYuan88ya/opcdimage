@@ -1,249 +1,203 @@
 # opcdimage Hugging Face 数据集工作流
 
-## 1. 目标
+## 1. 当前原则
 
-为了让 `opcdimage` 迁移到 Linux 机器后可以直接跑实验，当前数据流改成了两级：
+现在的数据流刻意做了简化，只保留一条默认路径：
 
-1. 本地如果已经有原始 `ZwZ-RL-VQA-mini`，可以直接本地生成 prepared dataset。
-2. 如果本地没有原始数据，则自动从 Hugging Face dataset 下载最小可训练子集。
+1. 数据统一来自 Hugging Face dataset repo：
+   - `muyuho/opcdmini`
+2. 本地数据准备只做三件事：
+   - 下载 `prepared/*`
+   - 下载并解压图片压缩包
+   - 跑一遍数据校验
 
-默认使用的 Hugging Face dataset repo id 为：
-
-- `muyuho/opcdmini`
-
-也可以通过环境变量覆盖：
-
-- `OPCDIMAGE_HF_DATASET_REPO_ID`
-- `OPCDIMAGE_PROXY`
+不再把“本地原始 CSV prepare”当成默认训练入口的一部分，也不再保留多套兜底逻辑。
 
 ---
 
-## 2. 当前新增的脚本
+## 2. HF repo 里有什么
 
-### 2.1 导出 HF-ready 子集
+当前 `muyuho/opcdmini` 里包含：
 
-- [hf_data_tools.py](C:\Users\LU\Desktop\rl4image\opcdimage\opcdimage_recipe\hf_data_tools.py) `export`
-
-作用：
-
-- 从本地 prepared dataset 中导出 HF-ready 目录
-- 复制训练真正需要的 full / crop 图像子集
-- 将 parquet 中的本地绝对路径改成相对路径
-
-导出后的目录结构是：
-
-- `README.md`
-- `summary.json`
 - `prepared/train.parquet`
 - `prepared/val.parquet`
 - `prepared/train.jsonl`
 - `prepared/val.jsonl`
-- `images/original_images/*`
-- `images/crop/*`
-
-### 2.2 上传到 HF dataset
-
-- [upload_hf_dataset.py](C:\Users\LU\Desktop\rl4image\opcdimage\opcdimage_recipe\upload_hf_dataset.py)
-
-作用：
-
-- 创建 dataset repo
-- 上传本地导出的 HF-ready 目录
-- 支持两种模式：
-  - `commit-batches`：按批次提交，适合小规模补传
-  - `large-folder`：调用 `huggingface_hub` 的大目录续传逻辑，适合 Linux 机器长期断点续传
-
-注意：
-
-- 这一步需要本机已经登录 Hugging Face，或者设置有效 token
-- 如果命中 Hugging Face 的每小时 commit 限流，优先改用 `--mode large-folder`
-
-### 2.3 自动下载并本地重写
-
-- [hf_data_tools.py](C:\Users\LU\Desktop\rl4image\opcdimage\opcdimage_recipe\hf_data_tools.py) `download`
-
-作用：
-
-1. 当本地 `train.parquet` / `val.parquet` 不存在时，从 HF dataset 下载：
-   - `prepared/*`
-   - `images/**/*`
-   - `summary.json`
-2. 将下载后的相对路径 manifest 重写成本地绝对路径 manifest
-3. 自动解压 `original_images.tar.gz` 和 `crop_images.tar.gz`
-3. 在目标目录下生成：
-   - `train.parquet`
-   - `val.parquet`
-   - `train.jsonl`
-   - `val.jsonl`
-   - `.hf_dataset_source.json`
-
-这样训练脚本和 dataset 类就不需要关心 Hub 上的相对路径格式。
-
-如果设置了 `OPCDIMAGE_PROXY`，脚本会自动同步到：
-
-- `HTTP_PROXY`
-- `HTTPS_PROXY`
-- `ALL_PROXY`
-
----
-
-## 3. 训练脚本如何工作
-
-### 3.1 数据准备入口
-
-- [prepare_opcdimage_data.sh](C:\Users\LU\Desktop\rl4image\opcdimage\examples\on_policy_distillation_trainer\prepare_opcdimage_data.sh)
-
-逻辑是：
-
-1. 如果 `data/opcdimage_qwen3vl4b/train.parquet` 和 `val.parquet` 已存在，直接返回
-2. 如果本地存在：
-   - `../ZwZ-RL-VQA-mini/train_crop_clean.csv`
-   - `../ZwZ-RL-VQA-mini/`
-   
-   就本地生成 prepared dataset
-3. 否则自动调用 `hf_data_tools.py download` 从 Hub 下载
-
-这里默认直接使用当前训练环境里的 `python3`，不要求额外安装 `uv`。
-
-如果需要走代理，可以先设置：
-
-```bash
-export OPCDIMAGE_PROXY="http://127.0.0.1:7897"
-```
-
-### 3.2 训练入口
-
-- [opcdimage_consolidate.sh](C:\Users\LU\Desktop\rl4image\opcdimage\examples\on_policy_distillation_trainer\opcdimage_consolidate.sh)
-
-逻辑是：
-
-1. 先检查 `DATA_DIR/train.parquet` 和 `DATA_DIR/val.parquet`
-2. 如果缺失，则自动调用 `hf_data_tools.py download`
-3. 数据准备完后，再进入 `trainer.stage=consolidate` 的主训练流程
-
-这意味着：
-
-- Linux 机器上如果没有原始数据，也可以直接跑训练脚本
-- 只要能访问公开 HF dataset，就能自动把所需子集拉下来
-
----
-
-## 4. 当前本地已导出的 HF-ready 目录
-
-当前推荐在本地维护一份待上传目录，例如：
-
-- `C:\Users\LU\Desktop\rl4image\opcdimage\hf_dataset\opcdmini_publish`
-
-目录里已经包含：
-
-- prepared parquet/jsonl
-- 训练需要的 full/crop 图像子集
-- README
-- summary
+- `original_images.tar.gz`
+- `crop_images.tar.gz`
+- `summary.json`
+- `README.md`
 
 其中：
 
-- prepared parquet 里的 `images`
-- `extra_info.original_image` / `extra_info.crop_image`
+- `prepared/*` 是训练直接读取的样本表
+- 两个 `tar.gz` 是图片内容
 
-都已经被改写成 Hub 友好的相对路径，例如：
+---
+
+## 3. parquet 里的路径现在怎么存
+
+现在 parquet 里保留的是相对路径，不会在下载后改写成绝对路径。
+
+例如：
 
 - `images/original_images/sa_9233167.jpg`
 - `images/crop/sa_9233167__1275_157_2167_449__3845722d9ef8.png`
 
+对应字段包括：
+
+- `original_images`
+- `crop_images`
+- `extra_info.original_image`
+- `extra_info.crop_image`
+
+这样做的好处是：
+
+- HF repo 内容保持可移植
+- parquet 在不同机器上不需要重新生成
+- 数据目录整体拷走后仍然成立
+
+运行时再由 dataset 按 `train.parquet` 所在目录解析这些相对路径。
+
 ---
 
-## 5. Linux 机器上的推荐用法
+## 4. 运行时如何解析这些相对路径
 
-### 方案 A：只跑训练
+训练时使用的是：
 
-直接执行：
+- [paired_vqa_dataset.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/paired_vqa_dataset.py)
+
+逻辑是：
+
+1. 读取 `train.parquet` / `val.parquet`
+2. 取 `parquet` 文件所在目录作为 `dataset_root`
+3. 把样本里的相对图片路径解析成：
+   - `${dataset_root}/images/original_images/...`
+   - `${dataset_root}/images/crop/...`
+4. 再把解析后的绝对路径送给 processor / trainer
+
+所以：
+
+- repo 内 manifest 保持相对路径
+- 真正读图时仍然拿到本机可访问的绝对路径
+
+---
+
+## 5. 下载脚本现在做什么
+
+核心入口是：
+
+- [hf_data_tools.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/hf_data_tools.py) 的 `download`
+
+它现在只做这些事：
+
+1. 从 `muyuho/opcdmini` 下载：
+   - `prepared/*`
+   - `summary.json`
+   - `original_images.tar.gz`
+   - `crop_images.tar.gz`
+   - 如果 repo 里已经展开了 `images/*`，也允许直接拉
+2. 如果本地还没有 `images/original_images` 和 `images/crop`，就自动解压两个压缩包
+3. 把：
+   - `prepared/train.parquet` 复制到 `${output_dir}/train.parquet`
+   - `prepared/val.parquet` 复制到 `${output_dir}/val.parquet`
+4. 写一个 `.hf_dataset_source.json` 标记文件
+
+它不会再重写 parquet 里的图片路径。
+
+---
+
+## 6. 训练脚本现在怎么准备数据
+
+默认入口是：
+
+- [opcdimage_consolidate.sh](C:/Users/LU/Desktop/rl4image/opcdimage/examples/on_policy_distillation_trainer/opcdimage_consolidate.sh)
+
+数据准备逻辑已经化简成：
+
+1. 如果 `${DATA_DIR}/train.parquet` 和 `${DATA_DIR}/val.parquet` 已经存在，直接进入训练
+2. 否则执行：
 
 ```bash
-export OPCDIMAGE_PROXY="http://127.0.0.1:7897"
-bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
+python3 opcdimage_recipe/hf_data_tools.py download \
+  --output-dir data/opcdimage_qwen3vl4b \
+  --repo-id muyuho/opcdmini
 ```
 
-如果本地没有 prepared dataset，它会自动尝试从 Hugging Face 下载。
+3. 下载并解压后，再执行：
 
-### 方案 B：先单独拉数据
+```bash
+python3 opcdimage_recipe/data_tools.py validate \
+  --train-file data/opcdimage_qwen3vl4b/train.parquet \
+  --val-file data/opcdimage_qwen3vl4b/val.parquet
+```
+
+也就是说，当前默认训练链路就是：
+
+- `download -> extract -> validate -> train`
+
+---
+
+## 7. 单独准备数据的命令
+
+如果你想先把数据准备好，再单独跑训练，可以直接执行：
 
 ```bash
 bash examples/on_policy_distillation_trainer/prepare_opcdimage_data.sh
 ```
 
-然后再启动训练。
-
-### 方案 C：切换到别的 dataset repo
+这个脚本现在也是极简版本，本质只做：
 
 ```bash
-export OPCDIMAGE_HF_DATASET_REPO_ID="your-name/your-opcdmini-repo"
-bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
-```
-
-### 方案 D：在 Linux 机器续传 HF 数据集
-
-推荐优先使用大目录模式：
-
-```bash
-export HF_TOKEN="your-token"
-export OPCDIMAGE_PROXY="http://127.0.0.1:7897"
-uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dataset.py \
-  --local-dir hf_dataset/opcdmini_publish/archives \
-  --repo-id muyuho/opcdmini \
-  --exist-ok \
-  --skip-existing \
-  --mode large-folder \
-  --num-workers 8
-```
-
-如果只想补传某一部分，也可以加 pattern，例如只传 crop：
-
-```bash
-uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dataset.py \
-  --local-dir hf_dataset/opcdmini_publish/archives \
-  --repo-id muyuho/opcdmini \
-  --exist-ok \
-  --skip-existing \
-  --mode large-folder \
-  --allow-pattern "crop_images.tar.gz"
-```
-
-也可以直接使用封装脚本：
-
-- [upload_opcdimage_hf_dataset.sh](C:\Users\LU\Desktop\rl4image\opcdimage\examples\on_policy_distillation_trainer\upload_opcdimage_hf_dataset.sh)
-
-例如只续传剩余 crop 图：
-
-```bash
-export HF_TOKEN="your-token"
-export OPCDIMAGE_PROXY="http://127.0.0.1:7897"
-export OPCDIMAGE_HF_ONLY_CROP=true
-bash examples/on_policy_distillation_trainer/upload_opcdimage_hf_dataset.sh
+python3 opcdimage_recipe/hf_data_tools.py download ...
+python3 opcdimage_recipe/data_tools.py validate ...
 ```
 
 ---
 
-## 6. 当前状态
+## 8. 导出和上传怎么理解
 
-当前已经完成：
+如果你后面要重新发布数据集，仍然可以用：
 
-- HF-ready 子集导出
-- 自动下载脚本
-- 训练入口自动检测与下载
-- 面向 Linux 的无原始数据运行路径
+- [hf_data_tools.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/hf_data_tools.py) `export`
+- [upload_hf_dataset.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/upload_hf_dataset.py)
 
-当前正在进行：
+这里的 `export` 会：
 
-- 目标 repo：`muyuho/opcdmini`
-- prepared 文件与部分图像已经上传
-- 仍有剩余图像需要续传
+- 复制训练实际需要的 full / crop 图片
+- 在导出后的 parquet 里写相对路径
 
-上传过程中目前遇到的主要约束是：
+也就是说，HF repo 上存的是“相对路径 manifest + 图片文件/压缩包”，而不是机器相关的绝对路径。
 
-- Hugging Face dataset repo 的每小时 commit 数限制
+---
 
-因此后续续传的推荐方式是：
+## 9. 推荐使用方式
 
-- 减少小批次 commit
-- 在 Linux 机器上优先使用 `large-folder` 模式续传
+Linux 机器上推荐直接这样用：
+
+```bash
+git clone --recurse-submodules https://github.com/MuYuan88ya/opcdimage.git
+cd opcdimage
+bash examples/on_policy_distillation_trainer/prepare_opcdimage_data.sh
+bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
+```
+
+如果你不想单独准备数据，也可以直接：
+
+```bash
+bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
+```
+
+因为训练脚本会自动触发前面的下载和校验。
+
+---
+
+## 10. 当前设计的关键结论
+
+现在这套实现可以记成一句话：
+
+- HF 上的 parquet 只保存相对路径
+- 本地准备数据只负责下载和解压
+- 运行时由 dataset 把相对路径解析成本地绝对路径
+
+这样数据集本身更干净，训练入口也更容易读和维护。
