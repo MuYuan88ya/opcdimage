@@ -12,6 +12,8 @@ fi
 DATA_DIR="${PROJECT_DIR}/data/opcdimage_qwen3vl4b"
 SOURCE_CSV="${PROJECT_DIR}/../ZwZ-RL-VQA-mini/train_crop_clean.csv"
 SOURCE_ROOT="${PROJECT_DIR}/../ZwZ-RL-VQA-mini"
+HF_DATASET_REPO_ID="${OPCDIMAGE_HF_DATASET_REPO_ID:-muyuho/opcdimage_mini}"
+HF_IMAGE_DATASET_REPO_ID="${OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID:-muyuho/opcdmini}"
 TRAIN_FILE="${DATA_DIR}/train.parquet"
 VAL_FILE="${DATA_DIR}/val.parquet"
 
@@ -28,6 +30,8 @@ else
     python3 \
       "${PROJECT_DIR}/opcdimage_recipe/hf_data_tools.py" download \
       --output-dir "${DATA_DIR}" \
+      --repo-id "${HF_DATASET_REPO_ID}" \
+      --image-repo-id "${HF_IMAGE_DATASET_REPO_ID}" \
       "$@"
   fi
 fi

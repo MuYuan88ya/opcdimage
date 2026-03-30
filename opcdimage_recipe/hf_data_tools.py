@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import shutil
+import tarfile
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,12 @@ import pandas as pd
 from huggingface_hub import snapshot_download
 
 HF_DATASET_REPO_ID = os.environ.get("OPCDIMAGE_HF_DATASET_REPO_ID", "muyuho/opcdimage_mini")
+HF_IMAGE_DATASET_REPO_ID = os.environ.get("OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID", "muyuho/opcdmini")
 HF_PREPARED_SUBDIR = "prepared"
+HF_ARCHIVE_FILENAMES = {
+    "original": "original_images.tar.gz",
+    "crop": "crop_images.tar.gz",
+}
 
 
 def _configure_proxy_from_env() -> None:
@@ -146,14 +152,106 @@ def run_export(args: argparse.Namespace) -> None:
     print(json.dumps({"output_dir": str(output_dir), "repo_id": args.repo_id}, ensure_ascii=False))
 
 
-def _materialize_split(snapshot_dir: Path, output_dir: Path, split: str) -> None:
+def _resolve_repo_path(repo_id: str, output_dir: Path, *, allow_patterns: list[str], force_download: bool) -> Path:
+    local_repo_path = repo_id.removeprefix("file://")
+    if Path(local_repo_path).exists():
+        return Path(local_repo_path).resolve()
+
+    return Path(
+        snapshot_download(
+            repo_id=repo_id,
+            repo_type="dataset",
+            local_dir=str(output_dir),
+            local_dir_use_symlinks=False,
+            force_download=force_download,
+            allow_patterns=allow_patterns,
+        )
+    ).resolve()
+
+
+def _extract_image_archives(snapshot_dir: Path, output_dir: Path) -> dict[str, str] | None:
+    archive_paths: dict[str, Path] = {}
+    for key, filename in HF_ARCHIVE_FILENAMES.items():
+        for candidate in [snapshot_dir / filename, snapshot_dir / "archives" / filename]:
+            if candidate.exists():
+                archive_paths[key] = candidate
+                break
+
+    if len(archive_paths) != len(HF_ARCHIVE_FILENAMES):
+        return None
+
+    for archive_path in archive_paths.values():
+        with tarfile.open(archive_path, "r:gz") as handle:
+            try:
+                handle.extractall(output_dir, filter="data")
+            except TypeError:
+                handle.extractall(output_dir)
+
+    return {key: str(path.resolve()) for key, path in archive_paths.items()}
+
+
+def _ensure_image_tree(
+    prepared_snapshot_dir: Path,
+    output_dir: Path,
+    *,
+    image_repo_id: str | None,
+    force_download: bool,
+) -> dict[str, Any]:
+    image_root = output_dir / "images"
+    if (image_root / "original_images").exists() and (image_root / "crop").exists() and not force_download:
+        return {"image_source": str(output_dir), "image_repo_id": image_repo_id, "archives": {}}
+
+    if (prepared_snapshot_dir / "images").exists():
+        return {
+            "image_source": str(prepared_snapshot_dir.resolve()),
+            "image_repo_id": image_repo_id,
+            "archives": {},
+        }
+
+    archive_snapshot_dir = prepared_snapshot_dir
+    if image_repo_id and image_repo_id != HF_DATASET_REPO_ID:
+        archive_snapshot_dir = _resolve_repo_path(
+            image_repo_id,
+            output_dir=output_dir,
+            allow_patterns=[
+                HF_ARCHIVE_FILENAMES["original"],
+                HF_ARCHIVE_FILENAMES["crop"],
+                "archives/*",
+                "images/*",
+                "images/**/*",
+            ],
+            force_download=force_download,
+        )
+
+    if (archive_snapshot_dir / "images").exists():
+        return {
+            "image_source": str(archive_snapshot_dir.resolve()),
+            "image_repo_id": image_repo_id,
+            "archives": {},
+        }
+
+    archive_info = _extract_image_archives(snapshot_dir=archive_snapshot_dir, output_dir=output_dir)
+    if archive_info is not None:
+        return {
+            "image_source": str(output_dir),
+            "image_repo_id": image_repo_id,
+            "archives": archive_info,
+        }
+
+    raise FileNotFoundError(
+        "Could not find usable image files for the HF dataset. "
+        f"prepared_snapshot_dir={prepared_snapshot_dir}, image_repo_id={image_repo_id}"
+    )
+
+
+def _materialize_split(snapshot_dir: Path, output_dir: Path, split: str, dataset_root: Path) -> None:
     prepared_path = snapshot_dir / HF_PREPARED_SUBDIR / f"{split}.parquet"
     if not prepared_path.exists():
         raise FileNotFoundError(f"Missing prepared split: {prepared_path}")
     df = pd.read_parquet(prepared_path)
     for column in ["original_images", "crop_images", "extra_info"]:
         if column in df.columns:
-            df[column] = df[column].map(lambda x: _rewrite_download_paths(x, snapshot_dir))
+            df[column] = df[column].map(lambda x: _rewrite_download_paths(x, dataset_root))
     output_path = output_dir / f"{split}.parquet"
     df.to_parquet(output_path, index=False)
     jsonl_path = output_dir / f"{split}.jsonl"
@@ -165,6 +263,7 @@ def _materialize_split(snapshot_dir: Path, output_dir: Path, split: str) -> None
 def ensure_local_hf_dataset(
     output_dir: str | Path,
     repo_id: str = HF_DATASET_REPO_ID,
+    image_repo_id: str | None = HF_IMAGE_DATASET_REPO_ID,
     force_download: bool = False,
 ) -> Path:
     _configure_proxy_from_env()
@@ -177,29 +276,29 @@ def ensure_local_hf_dataset(
     if train_path.exists() and val_path.exists() and marker_path.exists() and not force_download:
         return output_dir
 
-    local_repo_path = repo_id.removeprefix("file://")
-    if Path(local_repo_path).exists():
-        snapshot_dir = Path(local_repo_path).resolve()
-    else:
-        snapshot_dir = Path(
-            snapshot_download(
-                repo_id=repo_id,
-                repo_type="dataset",
-                local_dir=str(output_dir),
-                local_dir_use_symlinks=False,
-                force_download=force_download,
-                allow_patterns=[
-                    "README.md",
-                    "summary.json",
-                    "prepared/*",
-                    "images/*",
-                    "images/**/*",
-                ],
-            )
-        ).resolve()
+    snapshot_dir = _resolve_repo_path(
+        repo_id,
+        output_dir=output_dir,
+        allow_patterns=[
+            "README.md",
+            "summary.json",
+            "prepared/*",
+            "images/*",
+            "images/**/*",
+        ],
+        force_download=force_download,
+    )
+
+    image_info = _ensure_image_tree(
+        prepared_snapshot_dir=snapshot_dir,
+        output_dir=output_dir,
+        image_repo_id=image_repo_id,
+        force_download=force_download,
+    )
+    dataset_root = Path(image_info["image_source"]).resolve()
 
     for split in ["train", "val"]:
-        _materialize_split(snapshot_dir=snapshot_dir, output_dir=output_dir, split=split)
+        _materialize_split(snapshot_dir=snapshot_dir, output_dir=output_dir, split=split, dataset_root=dataset_root)
 
     summary_src = snapshot_dir / "summary.json"
     if summary_src.exists():
@@ -209,8 +308,11 @@ def ensure_local_hf_dataset(
         json.dumps(
             {
                 "repo_id": repo_id,
+                "image_repo_id": image_repo_id,
                 "snapshot_dir": str(snapshot_dir),
+                "image_source": image_info["image_source"],
                 "prepared_subdir": HF_PREPARED_SUBDIR,
+                "archives": image_info["archives"],
             },
             ensure_ascii=False,
             indent=2,
@@ -224,9 +326,15 @@ def run_download(args: argparse.Namespace) -> None:
     dataset_dir = ensure_local_hf_dataset(
         output_dir=args.output_dir,
         repo_id=args.repo_id,
+        image_repo_id=args.image_repo_id,
         force_download=args.force_download,
     )
-    print(json.dumps({"dataset_dir": str(dataset_dir), "repo_id": args.repo_id}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"dataset_dir": str(dataset_dir), "repo_id": args.repo_id, "image_repo_id": args.image_repo_id},
+            ensure_ascii=False,
+        )
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -242,6 +350,7 @@ def build_parser() -> argparse.ArgumentParser:
     download_parser = subparsers.add_parser("download", help="Download the HF-ready dataset and rewrite paths.")
     download_parser.add_argument("--output-dir", type=Path, required=True)
     download_parser.add_argument("--repo-id", type=str, default=HF_DATASET_REPO_ID)
+    download_parser.add_argument("--image-repo-id", type=str, default=HF_IMAGE_DATASET_REPO_ID)
     download_parser.add_argument("--force-download", action="store_true")
     return parser
 

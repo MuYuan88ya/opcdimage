@@ -9,11 +9,13 @@
 
 默认使用的 Hugging Face dataset repo id 为：
 
-- `muyuho/opcdimage_mini`
+- prepared parquet manifest：`muyuho/opcdimage_mini`
+- 图片压缩包：`muyuho/opcdmini`
 
 也可以通过环境变量覆盖：
 
 - `OPCDIMAGE_HF_DATASET_REPO_ID`
+- `OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID`
 - `OPCDIMAGE_PROXY`
 
 ---
@@ -69,6 +71,7 @@
    - `images/**/*`
    - `summary.json`
 2. 将下载后的相对路径 manifest 重写成本地绝对路径 manifest
+3. 如果图片来自 `opcdmini` 这种 archive repo，会先自动解压 `original_images.tar.gz` 和 `crop_images.tar.gz`
 3. 在目标目录下生成：
    - `train.parquet`
    - `val.parquet`
@@ -176,7 +179,8 @@ bash examples/on_policy_distillation_trainer/prepare_opcdimage_data.sh
 ### 方案 C：切换到别的 dataset repo
 
 ```bash
-export OPCDIMAGE_HF_DATASET_REPO_ID="your-name/your-dataset-repo"
+export OPCDIMAGE_HF_DATASET_REPO_ID="your-name/your-prepared-repo"
+export OPCDIMAGE_HF_IMAGE_DATASET_REPO_ID="your-name/your-image-archive-repo"
 bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
 ```
 
@@ -188,8 +192,8 @@ bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh
 export HF_TOKEN="your-token"
 export OPCDIMAGE_PROXY="http://127.0.0.1:7897"
 uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dataset.py \
-  --local-dir hf_dataset/opcdimage_mini \
-  --repo-id muyuho/opcdimage_mini \
+  --local-dir hf_dataset/opcdimage_mini/archives \
+  --repo-id muyuho/opcdmini \
   --exist-ok \
   --skip-existing \
   --mode large-folder \
@@ -200,12 +204,12 @@ uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dat
 
 ```bash
 uv run --no-project --with huggingface_hub python opcdimage_recipe/upload_hf_dataset.py \
-  --local-dir hf_dataset/opcdimage_mini \
-  --repo-id muyuho/opcdimage_mini \
+  --local-dir hf_dataset/opcdimage_mini/archives \
+  --repo-id muyuho/opcdmini \
   --exist-ok \
   --skip-existing \
   --mode large-folder \
-  --allow-pattern "images/crop/*"
+  --allow-pattern "crop_images.tar.gz"
 ```
 
 也可以直接使用封装脚本：
@@ -234,7 +238,8 @@ bash examples/on_policy_distillation_trainer/upload_opcdimage_hf_dataset.sh
 
 当前正在进行：
 
-- 目标 repo：`muyuho/opcdimage_mini`
+- prepared repo：`muyuho/opcdimage_mini`
+- image archive repo：`muyuho/opcdmini`
 - prepared 文件与部分图像已经上传
 - 仍有剩余图像需要续传
 

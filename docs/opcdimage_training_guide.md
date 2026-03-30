@@ -107,18 +107,20 @@ python opcdimage_recipe/data_tools.py prepare \
 
 ### 3.2 Hugging Face prepared dataset
 
-如果本地原始数据不存在，脚本会自动从：
+如果本地原始数据不存在，脚本会自动从两个 repo 拉数据：
 
-- `muyuho/opcdimage_mini`
+- prepared parquet manifest：`muyuho/opcdimage_mini`
+- 图片压缩包：`muyuho/opcdmini`
 
-下载 prepared dataset。
+下载时会自动把图片压缩包解压成训练可直接读取的 `images/...` 目录。
 
 你也可以手动执行：
 
 ```bash
 python opcdimage_recipe/hf_data_tools.py download \
   --output-dir data/opcdimage_qwen3vl4b \
-  --repo-id muyuho/opcdimage_mini
+  --repo-id muyuho/opcdimage_mini \
+  --image-repo-id muyuho/opcdmini
 ```
 
 ## 4. 最常用的实验命令
@@ -234,6 +236,8 @@ bash examples/on_policy_distillation_trainer/opcdimage_consolidate.sh \
 | 参数 | 默认值 | 影响 |
 | --- | --- | --- |
 | `--train_batch_size` | `64` | 每轮训练的全局 batch 大小 |
+| `--hf_dataset_repo_id` | `muyuho/opcdimage_mini` | prepared parquet manifest 的 HF repo |
+| `--hf_image_dataset_repo_id` | `muyuho/opcdmini` | 图像压缩包的 HF repo |
 | `--max_prompt_length` | `10000` | prompt 上限，影响显存和可保留上下文 |
 | `--max_response_length` | `512` | response 上限，影响生成长度和显存 |
 | `--processor_max_image_tokens` | `10000` | 图像侧视觉 token 预算上限，脚本会自动换算成 `max_pixels` |
