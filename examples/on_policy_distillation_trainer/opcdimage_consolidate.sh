@@ -109,7 +109,6 @@ if [[ -n "${TOTAL_TRAINING_STEPS}" ]]; then
 fi
 
 python3 -m verl.trainer.main_ppo \
-  --config-path=config \
   --config-name='ppo_trainer.yaml' \
   data.train_files="['${TRAIN_FILE}']" \
   data.val_files="['${VAL_FILE}']" \
