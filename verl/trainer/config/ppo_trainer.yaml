@@ -120,48 +120,6 @@ trainer:
   # Whether to balance batch sizes across distributed workers
   balance_batch: True
 
-  # Trainer stage. "standard" keeps upstream PPO flow; "consolidate" enables trainer-native OPCDImage flow.
-  stage: standard
-
-  # Privileged context mode used only in consolidate stage. Set to "crop" for Vision-OPCD.
-  privileged_mode: null
-
-  # Whether actor updates against privileged exp_log_probs on the same student trajectory.
-  on_policy_merge: true
-
-  # Unused in opcdimage v1, kept for compatibility with the OPcD trainer branch.
-  generate_off_policy: false
-
-  # Optional path to textual experience file. Unused when privileged_mode=crop.
-  experience_path: null
-
-  # Max token budget for textual experience truncation. Unused when privileged_mode=crop.
-  experience_max_length: 0
-
-  # Whether experience_path contains multiple file paths. Unused when privileged_mode=crop.
-  multi_experience: false
-
-  # Outer-loop experience round id. Keep 1 for opcdimage v1.
-  oel_round: 1
-
-  # Optional profiling step ids consumed by the OPcD-style trainer branch.
-  profile_steps: null
-
-  # Optional nsight worker options consumed by the OPcD-style trainer branch.
-  worker_nsight_options: null
-
-  # Validation settings kept for compatibility with the OPcD trainer branch.
-  held_out_size: 500
-  held_out_rollout: 2
-  eval_wo_experience: false
-  eval_prepend_experience: false
-
-  # Setting selector used by the OPcD trainer branch. Keep empty for opcdimage vision training.
-  setting: ""
-
-  # Textgame-only compatibility flag. Unused for opcdimage vision training.
-  textgame_max_steps: 0
-
   # Number of epochs in training
   total_epochs: 30
 
@@ -246,7 +204,7 @@ trainer:
 
   # whether to use legacy worker implementation
   #  mode: "auto", "enable", or "disable"
-  use_legacy_worker_impl: auto
+  use_legacy_worker_impl: disable
 
 # profiler configs
 global_profiler:

@@ -1,0 +1,12 @@
+{
+  "input": "C:\\Users\\LU\\Desktop\\rl4image\\ZwZ-RL-VQA-mini\\train_crop_clean.csv",
+  "dataset_root": "C:\\Users\\LU\\Desktop\\rl4image\\ZwZ-RL-VQA-mini",
+  "train_samples": 1826,
+  "val_samples": 210,
+  "train_path": "C:\\Users\\LU\\Desktop\\rl4image\\opcdimage\\data\\opcdimage_qwen3vl4b\\train.parquet",
+  "val_path": "C:\\Users\\LU\\Desktop\\rl4image\\opcdimage\\data\\opcdimage_qwen3vl4b\\val.parquet",
+  "unique_images_cached": 2216,
+  "mean_original_megapixels": 3.522142496561886,
+  "mean_crop_area_ratio": 0.1052394410658576,
+  "mean_bbox_area_ratio": 0.1040177697813362
+}

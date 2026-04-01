@@ -31,6 +31,7 @@ Common options:
   --kl_loss_type TYPE
   --kl_topk N
   --kl_renorm_topk BOOL
+  --use_fused_kernels BOOL
   --enforce_eager BOOL
   --processor_max_pixels N
   --processor_max_image_tokens N
@@ -119,6 +120,7 @@ init_defaults() {
   KL_LOSS_TYPE="full"
   KL_TOPK=256
   KL_RENORM_TOPK=True
+  USE_FUSED_KERNELS=False
   ENFORCE_EAGER=False
 
   # Processor / vision budget settings.
@@ -155,6 +157,7 @@ parse_args() {
       --kl_loss_type) KL_LOSS_TYPE="$2"; shift 2 ;;
       --kl_topk) KL_TOPK="$2"; shift 2 ;;
       --kl_renorm_topk) KL_RENORM_TOPK="$2"; shift 2 ;;
+      --use_fused_kernels) USE_FUSED_KERNELS="$2"; shift 2 ;;
       --enforce_eager) ENFORCE_EAGER="$2"; shift 2 ;;
       --processor_max_pixels) PROCESSOR_MAX_PIXELS="$2"; shift 2 ;;
       --processor_max_image_tokens) PROCESSOR_MAX_IMAGE_TOKENS="$2"; shift 2 ;;
@@ -181,6 +184,11 @@ finalize_config() {
   fi
 
   REF_MODEL_PATH=${REF_MODEL_PATH:-$MODEL_PATH}
+
+  if [[ "${KL_LOSS_TYPE}" == "full" && "${KL_TOPK}" -gt 0 && "${USE_FUSED_KERNELS}" == "True" ]]; then
+    echo "opcdimage reverse-KL recipe does not support use_fused_kernels=True with full top-k KL." >&2
+    exit 1
+  fi
 
   TRAIN_FILE="${DATA_DIR}/prepared/train.parquet"
   VAL_FILE="${DATA_DIR}/prepared/val.parquet"
@@ -251,7 +259,7 @@ launch_training() {
   # 这里把 Hydra 参数按 Data / Model / Actor / Rollout / Reward / Trainer 分块，
   # 后续做实验时优先在对应块里改，避免在整条长命令里来回找。
   local -a cmd=(
-    python3 -m verl.trainer.main_ppo
+    python3 -m opcdimage_recipe.main_ppo
     --config-name=ppo_trainer.yaml
 
     # Data.
@@ -274,10 +282,10 @@ launch_training() {
     # ref_model_path 是 privileged reference；
     # 当前默认 student / ref 同模型起步。
     "actor_rollout_ref.model.path=${MODEL_PATH}"
-    "actor_rollout_ref.model.ref_model_path=${REF_MODEL_PATH}"
+    "actor_rollout_ref.ref.model.path=${REF_MODEL_PATH}"
     "actor_rollout_ref.model.enable_gradient_checkpointing=True"
     "actor_rollout_ref.model.use_remove_padding=True"
-    "actor_rollout_ref.model.use_fused_kernels=True"
+    "actor_rollout_ref.model.use_fused_kernels=${USE_FUSED_KERNELS}"
 
     # Actor.
     # actor.use_kl_loss=True 表示当前训练核心就是 KL 对齐；
@@ -319,17 +327,13 @@ launch_training() {
     "reward.custom_reward_function.path=${PROJECT_DIR}/opcdimage_recipe/reward_fn.py"
     "reward.custom_reward_function.name=compute_score"
 
+    # Recipe-specific options.
+    # 这些配置只对 opcdimage recipe 生效，不再污染通用 trainer config。
+    # student 在原图上生成，ref 在 crop 条件下给同一条 response 打分。
+    "++opcdimage.privileged_mode=crop"
+    "++opcdimage.on_policy_merge=True"
+
     # Trainer.
-    # 这里定义当前实验范式：
-    # - stage=consolidate
-    # - privileged_mode=crop
-    # - on_policy_merge=True
-    # 含义是：student 在原图上生成，ref 在 crop 条件下给同一条 response 打分。
-    "trainer.stage=consolidate"
-    "trainer.privileged_mode=crop"
-    "trainer.on_policy_merge=True"
-    "trainer.generate_off_policy=False"
-    "trainer.experience_path=''"
     "trainer.val_before_train=False"
     "trainer.test_freq=${TEST_FREQ}"
     "trainer.logger=['console','wandb']"
