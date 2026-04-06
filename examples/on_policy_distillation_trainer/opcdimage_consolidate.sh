@@ -232,7 +232,7 @@ prepare_dataset_if_needed() {
   fi
 
   python3 \
-    "${PROJECT_DIR}/opcdimage_recipe/hf_data_tools.py" download \
+    "${PROJECT_DIR}/opcdimage_recipe/dataset_tools.py" download \
     --output-dir "${DATA_DIR}" \
     --repo-id "${HF_DATASET_REPO_ID}"
 }
@@ -244,7 +244,7 @@ validate_dataset() {
   # - reward_model.ground_truth 是否和 answer 一致
   # - train / val 是否发生原图泄漏
   python3 \
-    "${PROJECT_DIR}/opcdimage_recipe/data_tools.py" validate \
+    "${PROJECT_DIR}/opcdimage_recipe/dataset_tools.py" validate \
     --train-file "${TRAIN_FILE}" \
     --val-file "${VAL_FILE}"
 }

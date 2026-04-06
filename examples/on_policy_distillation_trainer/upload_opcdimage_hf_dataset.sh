@@ -21,7 +21,7 @@ fi
 
 CMD=(
   uv run --no-project --with huggingface_hub
-  python opcdimage_recipe/upload_hf_dataset.py
+  python opcdimage_recipe/dataset_tools.py upload
   --local-dir "$LOCAL_DIR"
   --repo-id "$REPO_ID"
   --exist-ok

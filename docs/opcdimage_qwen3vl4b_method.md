@@ -97,7 +97,7 @@ prepared parquet 的单条样本固定包含：
 
 在环境装好后，优先验证：
 
-1. `data_tools.py prepare` 能生成 train/val parquet
+1. `dataset_tools.py prepare` 能生成 train/val parquet
 2. 单样本跑通 `rollout -> batch_with_crop -> exp_log_probs -> update_actor`
 3. `kl_topk_indices` 和 `exp_log_probs` 在 consolidate 主线上能稳定产出
 4. 离线评估脚本能对 main / full baseline / crop upper bound 输出统一指标

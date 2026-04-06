@@ -88,7 +88,7 @@
 
 核心入口是：
 
-- [hf_data_tools.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/hf_data_tools.py) 的 `download`
+- [dataset_tools.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/dataset_tools.py) 的 `download`
 
 它现在只做这些事：
 
@@ -123,7 +123,7 @@
 2. 否则执行：
 
 ```bash
-python3 opcdimage_recipe/hf_data_tools.py download \
+python3 opcdimage_recipe/dataset_tools.py download \
   --output-dir data/muyuho/opcdmini \
   --repo-id muyuho/opcdmini
 ```
@@ -131,7 +131,7 @@ python3 opcdimage_recipe/hf_data_tools.py download \
 3. 下载并解压后，再执行：
 
 ```bash
-python3 opcdimage_recipe/data_tools.py validate \
+python3 opcdimage_recipe/dataset_tools.py validate \
   --train-file data/muyuho/opcdmini/prepared/train.parquet \
   --val-file data/muyuho/opcdmini/prepared/val.parquet
 ```
@@ -153,8 +153,8 @@ bash examples/on_policy_distillation_trainer/prepare_opcdimage_data.sh
 这个脚本现在也是极简版本，本质只做：
 
 ```bash
-python3 opcdimage_recipe/hf_data_tools.py download ...
-python3 opcdimage_recipe/data_tools.py validate ...
+python3 opcdimage_recipe/dataset_tools.py download ...
+python3 opcdimage_recipe/dataset_tools.py validate ...
 ```
 
 ---
@@ -163,8 +163,8 @@ python3 opcdimage_recipe/data_tools.py validate ...
 
 如果你后面要重新发布数据集，仍然可以用：
 
-- [hf_data_tools.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/hf_data_tools.py) `export`
-- [upload_hf_dataset.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/upload_hf_dataset.py)
+- [dataset_tools.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/dataset_tools.py) `export`
+- [dataset_tools.py](C:/Users/LU/Desktop/rl4image/opcdimage/opcdimage_recipe/dataset_tools.py) `upload`
 
 这里的 `export` 会：
 

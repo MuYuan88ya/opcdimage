@@ -167,7 +167,7 @@ trainer 先在 plain full-image batch 上 rollout，然后再在 `on_policy_merg
 
 对应准备脚本：
 
-- [data_tools.py](C:\Users\LU\Desktop\rl4image\opcdimage\opcdimage_recipe\data_tools.py)
+- [dataset_tools.py](C:\Users\LU\Desktop\rl4image\opcdimage\opcdimage_recipe\dataset_tools.py)
 
 ### 3.2 dataset 在 trainer 中提供两套 prompt
 

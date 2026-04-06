@@ -5,8 +5,7 @@ from omegaconf import OmegaConf
 
 from opcdimage_recipe.core import build_crop_messages_from_raw_prompt
 from opcdimage_recipe.dp_actor import compute_reverse_kl_loss
-from opcdimage_recipe.ray_trainer import compose_prompt_response_tensors
-from opcdimage_recipe.training.utils import load_opcdimage_reward_manager
+from opcdimage_recipe.ray_trainer import compose_prompt_response_tensors, load_opcdimage_reward_manager
 from verl.trainer.ppo.core_algos import agg_loss, kl_penalty
 from verl.workers.reward_manager.naive import NaiveRewardManager
 

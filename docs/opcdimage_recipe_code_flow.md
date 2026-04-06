@@ -9,9 +9,9 @@
 本文默认对应当前 recipe-local 实现：
 
 - 训练入口：`python -m opcdimage_recipe.main_ppo`
-- 实际入口实现：`opcdimage_recipe/training/main_ppo.py`
-- recipe trainer：`opcdimage_recipe/training/trainer.py`
-- recipe actor：`opcdimage_recipe/training/actor.py`
+- recipe 入口实现：`opcdimage_recipe/main_ppo.py`
+- recipe trainer：`opcdimage_recipe/ray_trainer.py`
+- recipe actor：`opcdimage_recipe/dp_actor.py`
 - 自定义 dataset：`opcdimage_recipe/paired_vqa_dataset.py`
 - 自定义 reward：`opcdimage_recipe/reward_fn.py`
 
@@ -134,8 +134,7 @@ trainer.use_legacy_worker_impl=enable
 
 ## 4. `opcdimage_recipe.main_ppo` 做了什么
 
-现在顶层 `opcdimage_recipe/main_ppo.py` 只是兼容壳，实际实现位于
-`opcdimage_recipe/training/main_ppo.py`。它基本分三层：
+`opcdimage_recipe/main_ppo.py` 基本分三层：
 
 1. `main(config)`
 2. `run_ppo(config)`
@@ -199,7 +198,7 @@ from verl.workers.actor import DataParallelPPOActor
 - actor
 - ref policy
 
-时，实际拿到的已经是 `opcdimage_recipe/training/actor.py` 中的实现。
+时，实际拿到的已经是 `opcdimage_recipe/dp_actor.py` 中的实现。
 
 这就是本次重构的核心策略：
 
@@ -633,7 +632,7 @@ self.actor.update_policy(data=data)
 
 由于前面已 monkeypatch，`self.actor` 实际是 recipe actor。
 
-所以此时就真正进入了 `opcdimage_recipe/training/actor.py` 的 `update_policy()`。
+所以此时就真正进入了 `opcdimage_recipe/dp_actor.py` 的 `update_policy()`。
 
 ---
 
@@ -1013,12 +1012,11 @@ KL(teacher || student)
 | 文件 | 作用 |
 | --- | --- |
 | `examples/on_policy_distillation_trainer/opcdimage_consolidate.sh` | 实验脚本入口 |
-| `opcdimage_recipe/main_ppo.py` | 顶层兼容入口，实际转发到 training 子模块 |
-| `opcdimage_recipe/training/main_ppo.py` | recipe-local 启动器与 TaskRunner |
+| `opcdimage_recipe/main_ppo.py` | recipe-local 启动器与 TaskRunner |
 | `opcdimage_recipe/paired_vqa_dataset.py` | 数据集与 `re_tokenize()` |
 | `opcdimage_recipe/core.py` | crop prompt 重建 |
-| `opcdimage_recipe/training/trainer.py` | 单步训练主循环 |
-| `opcdimage_recipe/training/actor.py` | top-k support + reverse-KL actor |
+| `opcdimage_recipe/ray_trainer.py` | 单步训练主循环 |
+| `opcdimage_recipe/dp_actor.py` | top-k support + reverse-KL actor |
 | `opcdimage_recipe/reward_fn.py` | 多选题打分 |
 | `verl/workers/fsdp_workers.py` | upstream worker 容器，实际调用 recipe actor |
 

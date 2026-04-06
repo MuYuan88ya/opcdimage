@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from opcdimage_recipe.hf_data_tools import ensure_local_hf_dataset
+from opcdimage_recipe.dataset_tools import ensure_local_hf_dataset
 
 
 def _write_archive(archive_path: Path, source_root: Path, members: list[Path]) -> None:
